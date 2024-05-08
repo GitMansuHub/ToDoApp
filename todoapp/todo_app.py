@@ -1,8 +1,8 @@
 import sys
 import argparse
 import pickle
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLineEdit, QPushButton, QListWidget, QInputDialog, QLabel, QComboBox, QDateEdit, QListWidgetItem
-from PyQt5.QtCore import QDate
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLineEdit, QPushButton, QListWidget, QInputDialog, QLabel, QComboBox, QDateEdit, QListWidgetItem, QCheckBox
+from PyQt5.QtCore import QDate, Qt
 
 class Task:
     def __init__(self, title, description, priority, due_date):
@@ -10,6 +10,7 @@ class Task:
         self.description = description
         self.priority = priority
         self.due_date = due_date
+        self.completed = False  # Default status is incomplete
 
 class ToDoApp(QWidget):
     def __init__(self):
@@ -57,6 +58,8 @@ class ToDoApp(QWidget):
         self.sort_title_button.clicked.connect(self.sort_by_title)
         self.sort_priority_button.clicked.connect(self.sort_by_priority)
         self.sort_due_date_button.clicked.connect(self.sort_by_due_date)
+        
+        self.task_list.itemChanged.connect(self.update_task_status)
         
         self.setLayout(self.layout)
         
@@ -115,8 +118,19 @@ class ToDoApp(QWidget):
         self.task_list.clear()
         for task in self.tasks:
             item = QListWidgetItem(f"{task.title} - Priority: {task.priority}, Due Date: {task.due_date}")
+            if task.completed:
+                item.setCheckState(Qt.Checked)
+            else:
+                item.setCheckState(Qt.Unchecked)
             self.task_list.addItem(item)
-    
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+
+    def update_task_status(self, item):
+        index = self.task_list.row(item)
+        task = self.tasks[index]
+        task.completed = item.checkState() == Qt.Checked
+        self.save_tasks()  # Save tasks after updating status
+
     def save_tasks(self):
         with open("tasks.pkl", "wb") as file:
             pickle.dump(self.tasks, file)
@@ -137,6 +151,8 @@ def run_cli():
     parser.add_argument("--delete", help="Delete a task by index")
     parser.add_argument("--update", help="Update a task by index")
     parser.add_argument("--sort", help="Sort tasks by criterion (title, priority, due_date)")
+    parser.add_argument("--complete", help="Mark a task as complete by index")
+    parser.add_argument("--incomplete", help="Mark a task as incomplete by index")
     args = parser.parse_args()
 
     if args.add:
@@ -157,7 +173,8 @@ def run_cli():
                 tasks = pickle.load(file)
                 print("Tasks:")
                 for i, task in enumerate(tasks):
-                    print(f"{i + 1}. {task.title} - Priority: {task.priority}, Due Date: {task.due_date}")
+                    status = "Completed" if task.completed else "Incomplete"
+                    print(f"{i + 1}. {task.title} - Priority: {task.priority}, Due Date: {task.due_date} ({status})")
         except FileNotFoundError:
             print("No tasks found.")
         sys.exit()
@@ -215,6 +232,38 @@ def run_cli():
                 print("Tasks sorted successfully.")
         except (FileNotFoundError, ValueError):
             print("Error: Unable to sort tasks.")
+        sys.exit()
+
+    if args.complete:
+        try:
+            index = int(args.complete) - 1
+            with open("tasks.pkl", "rb") as file:
+                tasks = pickle.load(file)
+                if 0 <= index < len(tasks):
+                    tasks[index].completed = True
+                    with open("tasks.pkl", "wb") as file:
+                        pickle.dump(tasks, file)
+                    print("Task marked as complete successfully.")
+                else:
+                    print("Invalid task index.")
+        except (FileNotFoundError, ValueError):
+            print("Error: Unable to mark task as complete.")
+        sys.exit()
+
+    if args.incomplete:
+        try:
+            index = int(args.incomplete) - 1
+            with open("tasks.pkl", "rb") as file:
+                tasks = pickle.load(file)
+                if 0 <= index < len(tasks):
+                    tasks[index].completed = False
+                    with open("tasks.pkl", "wb") as file:
+                        pickle.dump(tasks, file)
+                    print("Task marked as incomplete successfully.")
+                else:
+                    print("Invalid task index.")
+        except (FileNotFoundError, ValueError):
+            print("Error: Unable to mark task as incomplete.")
         sys.exit()
 
 if __name__ == "__main__":
